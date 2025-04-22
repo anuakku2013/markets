@@ -1,8 +1,8 @@
 name: Trading Bot Workflow
-
 on:
   schedule:
     - cron: '0 3 * * *' # Run daily at 03:00 UTC (08:30 IST)
+    - cron: '30 8 * * *' # Run at 08:30 UTC (14:00 IST) for BTST recommendations
   push:
     branches: [ main ]
   pull_request:
@@ -12,17 +12,16 @@ on:
 jobs:
   run-trading-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 30  # Increased timeout to handle longer runs
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
-
+          python-version: '3.10'  # Updated to a more recent Python version
+      
       - name: Install TA-Lib C library
         run: |
           wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
@@ -32,30 +31,63 @@ jobs:
           make
           sudo make install
           cd ..
-
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
           pip install typing_extensions==4.12.2
-          pip install pandas==2.0.3 numpy==1.24.4 matplotlib==3.7.5 scikit-learn==1.3.2 yfinance==0.2.44 alpha_vantage==2.3.1 TA-Lib==0.4.24 schedule==1.2.2 ccxt==4.4.40 python-dotenv==1.0.1 requests==2.32.3 tensorflow==2.15.0 torch==2.2.2 pytz==2024.2 plotly==5.24.1 ratelimit==2.2.1 dash==2.18.1
+          # Install heavy dependencies first separately to avoid timeout issues
+          pip install tensorflow==2.15.0 --no-cache-dir
+          pip install torch==2.2.2 --no-cache-dir
+          # Install all other required packages
+          pip install pandas==2.0.3 numpy==1.24.4 matplotlib==3.7.5 scikit-learn==1.3.2 
+          pip install yfinance==0.2.44 alpha_vantage==2.3.1 schedule==1.2.2 ccxt==4.4.40 
+          pip install python-dotenv==1.0.1 requests==2.32.3 pytz==2024.2 plotly==5.24.1 
+          pip install ratelimit==2.2.1 dash==2.18.1 bs4==0.0.2 beautifulsoup4==4.12.3
+          # Install TA-Lib after the C library is built
+          pip install TA-Lib==0.4.24
+          # Missing packages from the original code
+          pip install argparse==1.4.0
 
-      - name: Run trading bot
+      - name: Create required directories
+        run: |
+          mkdir -p ./data_cache
+          mkdir -p ./recommendations
+          mkdir -p ./logs
+      
+      - name: Run trading bot daily recommendations
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python trading_bot.py
-
+          python trading_bot.py --daily
+      
+      - name: Run trading bot BTST recommendations
+        if: github.event_name == 'schedule' && contains(github.event.schedule, '30 8 * * *')
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python trading_bot.py --btst
+      
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: trading-bot-logs
-          path: ./logs/trading_bot.log
-
-      - name: Upload reports
+          path: ./logs/*.log
+      
+      - name: Upload recommendations
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: trading-bot-reports
-          path: ./recommendations/*.md
+          name: trading-bot-recommendations
+          path: ./recommendations/*.json
