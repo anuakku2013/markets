@@ -4,7 +4,7 @@ name: Trading Bot Workflow
 # This example runs every 6 hours
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *'  # Fixed cron syntax: seconds minutes hours day-of-month month day-of-week
   # Allow manual triggering of the workflow
   workflow_dispatch:
 
