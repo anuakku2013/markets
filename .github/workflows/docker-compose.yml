@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  tradingbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tradingbot
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./:/app
+    restart: always
+    environment:
+      - TZ=UTC
+    # Set up cron to run the trading bot according to schedule
+    command: >
+      bash -c "
+        echo '0 */6 * * * cd /app && python /app/tradingbot.py >> /app/logs/cron.log 2>&1' > /etc/cron.d/tradingbot-cron &&
+        chmod 0644 /etc/cron.d/tradingbot-cron &&
+        crontab /etc/cron.d/tradingbot-cron &&
+        service cron start &&
+        # Run once immediately at startup
+        python /app/tradingbot.py &&
+        # Keep container running
+        tail -f /dev/null
+      "
