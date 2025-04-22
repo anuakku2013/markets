@@ -1,4 +1,4 @@
-
+```python
 import os
 import sys
 import time
@@ -92,7 +92,7 @@ CONFIG = {
             "CONCOR.NS", "HAL.NS", "NESTLEIND.NS", "INDIGO.NS", "SUNTV.NS",
             "DABUR.NS", "MAHINDCIE.NS", "SIEMENS.NS", "AUROPHARMA.NS", "MCDOWELL-N.NS",
             "JUBLFOOD.NS", "BHARATFORG.NS", "ABFRL.NS", "BANDHANBNK.NS", "BOSCHLTD.NS",
-            "CHOLAFIN.NS", "EICHERMOT.NS", "EXIDEIND.NS", "HDFC.NS"
+            "CHOLAFIN.NS", "EICHERMOT.NS", "EXIDEIND.NS"
         ]
     },
     'news': [
@@ -101,7 +101,8 @@ CONFIG = {
         {'name': 'LiveMint', 'url': 'https://www.livemint.com/market/stock-market-news'}
     ],
     'workflow': {
-        'daily_run_time': '08:30'  # IST
+        'daily_run_time': '20:00',  # Changed to 8 PM IST for full summary
+        'btst_time': '14:00'  # 2 PM IST for BTST recommendations
     }
 }
 
@@ -248,7 +249,7 @@ def calculate_indicators(df):
     return data
 
 # Analyze stock
-def analyze_stock(symbol, data):
+def analyze_stock(symbol, data, is_btst=False):
     try:
         min_data_points = 30
         if data is None or len(data) < min_data_points:
@@ -282,6 +283,11 @@ def analyze_stock(symbol, data):
                 sell_signals.append("Price below SMA20 and SMA50")
                 score -= 1
         
+        # BTST-specific logic
+        if is_btst and score >= 5:
+            buy_signals.append("BTST candidate")
+            score += 2
+        
         result = {
             'symbol': symbol,
             'close': latest_close,
@@ -308,7 +314,7 @@ def check_market_state():
     market_close = datetime.combine(now.date(), dt_time(15, 30)).replace(tzinfo=india_tz)
     
     if market_open <= now < market_close:
-        return 'open', f'Market open'
+        return 'open', 'Market open'
     return 'closed', 'Outside trading hours'
 
 # News fetching
@@ -347,7 +353,7 @@ def get_market_news(max_articles=5):
     return all_news[:max_articles]
 
 # Generate technical signals
-def generate_technical_signals(stocks_list, interval='1d'):
+def generate_technical_signals(stocks_list, interval='1d', is_btst=False):
     signals = []
     batch_size = 10
     for i in range(0, len(stocks_list), batch_size):
@@ -357,7 +363,7 @@ def generate_technical_signals(stocks_list, interval='1d'):
             try:
                 df = data.get(symbol)
                 if df is not None and not df.empty:
-                    result = analyze_stock(symbol, df)
+                    result = analyze_stock(symbol, df, is_btst)
                     if result:
                         signals.append(result)
                         logger.info(f"Generated signals for {symbol}: Score={result['score']}")
@@ -367,38 +373,76 @@ def generate_technical_signals(stocks_list, interval='1d'):
     signals.sort(key=lambda x: abs(x['score']), reverse=True)
     return signals
 
-# Generate daily insights
-def generate_daily_insights():
+# Generate recommendations based on time
+def generate_recommendations(is_btst=False):
     try:
         market_state, market_message = check_market_state()
         news = get_market_news(max_articles=5)
-        signals = generate_technical_signals(CONFIG['stocks']['analysis'])
+        signals = generate_technical_signals(CONFIG['stocks']['analysis'], is_btst=is_btst)
         
         report = []
         today_date = datetime.now().strftime('%d %b %Y')
-        report.append(f"📊 *Daily Market Insights - {today_date}*")
+        greeting = "🌞 Good Morning!" if is_btst or market_state == 'open' else "🌙 Good Evening!"
+        report.append(f"{greeting} 📊 *Daily Market Insights - {today_date}*")
         report.append(f"📈 *Market Status:* {market_state.upper()} - {market_message}")
         report.append("")
         
-        if signals:
-            bullish_stocks = [s for s in signals if s['score'] > 3]
-            if bullish_stocks:
-                report.append("🟢 *TOP BULLISH STOCKS*")
-                for stock in bullish_stocks[:5]:
-                    symbol_display = stock['symbol'].replace('.NS', '')
-                    change_pct = stock['change'] * 100
-                    report.append(f"*{symbol_display}:* {stock['close']:.2f} ({change_pct:.2f}%)")
+        recommendations = {'BUY': [], 'SELL': [], 'Changed': []}
+        for signal in signals:
+            score = signal['score']
+            price = signal['close']
+            target_price = price * 1.10 if score >= 8 else price * 1.05 if score >= 5 else price * 0.95
+            price_display = f"₹{price:.2f}" if isinstance(price, (int, float)) else str(price)
+            target_display = f"₹{target_price:.2f}" if isinstance(target_price, (int, float)) else 'N/A'
+            reasons = signal['buy_signals'] if score > 0 else signal['sell_signals']
+            reason_text = ', '.join(reasons) if reasons else 'Based on technical analysis'
+            
+            rec = {
+                'symbol': signal['symbol'].replace('.NS', ''),
+                'price': price_display,
+                'target': target_display,
+                'reason': reason_text,
+                'change': signal['change'] * 100
+            }
+            
+            if score >= 5:
+                recommendations['BUY'].append(rec)
+            elif score <= 2:
+                recommendations['SELL'].append(rec)
+            if abs(signal['change']) > 0.01:
+                recommendations['Changed'].append(rec)
+        
+        if is_btst:
+            if recommendations['BUY']:
+                report.append("🟢 *BTST Recommendations*")
+                for rec in recommendations['BUY'][:3]:
+                    report.append(f"*{rec['symbol']}*: Buy at {rec['price']}, Target: {rec['target']}")
+                    report.append(f"Reason: {rec['reason']} 🚀")
+        elif market_state == 'open':
+            if recommendations['BUY']:
+                report.append("🟢 *BUY Recommendations*")
+                for rec in recommendations['BUY'][:5]:
+                    report.append(f"*{rec['symbol']}*: Buy at {rec['price']}, Target: {rec['target']}")
+                    report.append(f"Reason: {rec['reason']} 🚀")
+        else:
+            report.append("📝 *Market Summary*")
+            for category in ['BUY', 'SELL', 'Changed']:
+                if recommendations[category]:
+                    report.append(f"*{category.upper()}*")
+                    for rec in recommendations[category][:3]:
+                        report.append(f"*{rec['symbol']}*: {rec['price']} ({rec['change']:.2f}%)")
+                        report.append(f"Target: {rec['target']}, Reason: {rec['reason']} {'🚀' if category == 'BUY' else '🔻'}")
         
         if news:
-            report.append("📰 *LATEST MARKET NEWS*")
+            report.append("📰 *Latest Market News*")
             for article in news:
                 report.append(f"*{article['source']}:* [{article['title']}]({article['link']})")
         
-        report.append("⚠️ *Disclaimer:* Not financial advice.")
+        report.append("⚠️ *Disclaimer:* Not financial advice. 🙏 Trade wisely!")
         report_text = "\n".join(report)
         
         report_file = os.path.join(CONFIG['cache']['recommendations_dir'],
-                                  f"daily_report_{datetime.now().strftime('%Y%m%d')}.md")
+                                  f"report_{datetime.now().strftime('%Y%m%d_%H%M')}.md")
         with open(report_file, 'w') as f:
             f.write(report_text)
         
@@ -407,7 +451,7 @@ def generate_daily_insights():
         
         return {'report': report_text, 'signals': signals}
     except Exception as e:
-        logger.error(f"Error generating daily insights: {e}")
+        logger.error(f"Error generating recommendations: {e}")
         return None
 
 # Telegram message sending
@@ -433,61 +477,11 @@ def send_telegram_message(message, max_retries=3):
     telegram_queue.put(message)
     return False
 
-# Display trading recommendations
-def display_trading_recommendations(signals):
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print("\n===== STOCK RECOMMENDATIONS =====")
-    print(f"Generated on: {timestamp}\n")
-    
-    if not signals or not isinstance(signals, list):
-        print("No valid signals available")
-        print("================================")
-        return []
-    
-    recommendations = []
-    for signal in sorted(signals, key=lambda x: x.get('score', 0), reverse=True):
-        score = signal.get('score', 0)
-        action = 'STRONG BUY' if score >= 8 else 'BUY' if score >= 5 else 'HOLD' if score >= 3 else 'SELL'
-        price = signal.get('close', 'N/A')
-        
-        target_price = price * 1.10 if score >= 8 else price * 1.05 if score >= 5 else price * 0.95 if score <= 2 else price
-        price_display = f"₹{price:.2f}" if isinstance(price, (int, float)) else str(price)
-        target_display = f"₹{target_price:.2f}" if isinstance(target_price, (int, float)) else 'N/A'
-        
-        reasons = signal.get('buy_signals', []) if score > 0 else signal.get('sell_signals', [])
-        reason_text = ', '.join(reasons) if reasons else 'Based on technical analysis'
-        
-        print(f"{signal['symbol']}: {action} (Score: {score})")
-        print(f"  Current Price: {price_display}")
-        print(f"  Target Price: {target_display}")
-        print(f"  Reason: {reason_text}")
-        print("")
-        
-        if score >= 5:
-            recommendations.append({
-                'symbol': signal['symbol'],
-                'action': action,
-                'price': price_display,
-                'target': target_display,
-                'reason': reason_text
-            })
-    
-    print("================================")
-    
-    if TELEGRAM_ENABLED and recommendations:
-        telegram_message = f"📈 *Stock Recommendations ({timestamp})*\n\n"
-        for rec in recommendations[:5]:
-            telegram_message += f"*{rec['symbol']}*: {rec['action']}\n"
-            telegram_message += f"Price: {rec['price']} → Target: {rec['target']}\n"
-            telegram_message += f"Reason: {rec['reason']}\n\n"
-        send_telegram_message(telegram_message)
-    
-    return recommendations
-
 # Schedule tasks
 def schedule_tasks():
-    schedule.every().day.at(CONFIG['workflow']['daily_run_time']).do(generate_daily_insights)
-    logger.info(f"Scheduled daily run at {CONFIG['workflow']['daily_run_time']} IST")
+    schedule.every().day.at(CONFIG['workflow']['btst_time']).do(lambda: generate_recommendations(is_btst=True))
+    schedule.every().day.at(CONFIG['workflow']['daily_run_time']).do(generate_recommendations)
+    logger.info(f"Scheduled BTST at {CONFIG['workflow']['btst_time']} and daily run at {CONFIG['workflow']['daily_run_time']} IST")
 
 # Run scheduler
 def run_scheduler():
@@ -505,15 +499,14 @@ def workflow_runner():
     logger.info("Starting workflow runner")
     install_packages()  # Install packages at runtime
     schedule_tasks()
-    result = generate_daily_insights()
     
-    if result and isinstance(result, dict) and 'signals' in result:
-        recommended_stocks = display_trading_recommendations(result['signals'])
-        logger.info(f"Generated recommendations for {len(recommended_stocks)} stocks")
-    else:
-        logger.error("No valid signals for recommendations")
-        if result:
-            logger.info(result.get('report', 'Error generating insights'))
+    # Run immediately in GitHub Actions or manual trigger
+    if os.environ.get('GITHUB_ACTIONS') or datetime.now().strftime('%H:%M') == CONFIG['workflow']['daily_run_time']:
+        result = generate_recommendations()
+        if result and isinstance(result, dict) and 'signals' in result:
+            logger.info("Generated initial recommendations")
+        else:
+            logger.error("No valid signals for initial recommendations")
     
     scheduler_thread = threading.Thread(target=run_scheduler)
     scheduler_thread.daemon = True
@@ -544,3 +537,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+```
