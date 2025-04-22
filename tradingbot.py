@@ -1,21 +1,53 @@
 import os
+import sys
 import time
+import subprocess
 import pandas as pd
 import numpy as np
 import logging
 import yfinance as yf
 import json
-from datetime import datetime, timedelta, time as dt_time
+from datetime import datetime, time as dt_time
 import requests
 import pytz
 import schedule
 import threading
 import sqlite3
 from bs4 import BeautifulSoup
-import holidays
 from queue import Queue
 from ratelimit import limits, sleep_and_retry
-import sys
+
+# List of required packages
+REQUIRED_PACKAGES = [
+    'pandas', 'numpy', 'matplotlib', 'scikit-learn', 'yfinance', 'alpha_vantage',
+    'schedule', 'ccxt', 'python-dotenv', 'requests', 'tensorflow', 'torch',
+    'pytz', 'plotly', 'ratelimit', 'dash', 'TA-Lib==0.4.24'
+]
+
+# Install required packages
+def install_packages():
+    logger.info("Checking and installing required packages...")
+    for package in REQUIRED_PACKAGES:
+        try:
+            __import__(package.split('==')[0].replace('-', '_'))
+        except ImportError:
+            logger.info(f"Installing {package}...")
+            try:
+                subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to install {package}: {e}")
+                if package == 'TA-Lib==0.4.24':
+                    logger.info("Attempting to install TA-Lib prebuilt wheel...")
+                    try:
+                        # Use prebuilt wheel for TA-Lib (Python 3.8, 64-bit)
+                        wheel_url = "https://github.com/TA-Lib/ta-lib-python/releases/download/v0.4.24/ta_lib-0.4.24-cp38-cp38-win_amd64.whl"
+                        subprocess.check_call([sys.executable, '-m', 'pip', 'install', wheel_url])
+                    except subprocess.CalledProcessError as e:
+                        logger.error(f"Failed to install TA-Lib wheel: {e}")
+                        sys.exit(1)
+                else:
+                    sys.exit(1)
+    logger.info("All packages installed successfully.")
 
 # Configuration
 CONFIG = {
@@ -62,7 +94,10 @@ CONFIG = {
         {'name': 'MoneyControl', 'url': 'https://www.moneycontrol.com/news/business/markets/'},
         {'name': 'Economic Times', 'url': 'https://economictimes.indiatimes.com/markets/stocks/news'},
         {'name': 'LiveMint', 'url': 'https://www.livemint.com/market/stock-market-news'}
-    ]
+    ],
+    'workflow': {
+        'daily_run_time': '08:30'  # IST
+    }
 }
 
 # Setup directories
@@ -86,9 +121,6 @@ TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
 telegram_queue = Queue()
-
-# Indian holidays
-INDIAN_HOLIDAYS = holidays.India()
 
 # Derived stock lists
 ALL_STOCKS = list(set(CONFIG['stocks']['indices'] + CONFIG['stocks']['analysis']))
@@ -267,12 +299,8 @@ def check_market_state():
     if now.weekday() >= 5:
         return 'closed', 'Weekend'
     
-    today_date = now.date()
-    if today_date in INDIAN_HOLIDAYS:
-        return 'closed', f'Holiday: {INDIAN_HOLIDAYS[today_date]}'
-    
-    market_open = datetime.combine(today_date, dt_time(9, 15)).replace(tzinfo=india_tz)
-    market_close = datetime.combine(today_date, dt_time(15, 30)).replace(tzinfo=india_tz)
+    market_open = datetime.combine(now.date(), dt_time(9, 15)).replace(tzinfo=india_tz)
+    market_close = datetime.combine(now.date(), dt_time(15, 30)).replace(tzinfo=india_tz)
     
     if market_open <= now < market_close:
         return 'open', f'Market open'
@@ -306,7 +334,6 @@ def get_market_news(max_articles=5):
                             'title': title,
                             'link': link if link.startswith('http') else f"https://www.moneycontrol.com{link}"
                         })
-            # Add similar logic for other sources
         except Exception as e:
             logger.error(f"Error fetching news from {source['name']}: {e}")
     
@@ -454,8 +481,8 @@ def display_trading_recommendations(signals):
 
 # Schedule tasks
 def schedule_tasks():
-    schedule.every().day.at('08:30').do(generate_daily_insights)
-    logger.info("Tasks scheduled")
+    schedule.every().day.at(CONFIG['workflow']['daily_run_time']).do(generate_daily_insights)
+    logger.info(f"Scheduled daily run at {CONFIG['workflow']['daily_run_time']} IST")
 
 # Run scheduler
 def run_scheduler():
@@ -468,6 +495,28 @@ def run_scheduler():
         logger.error(f"Scheduler loop crashed: {e}")
         raise
 
+# Workflow runner
+def workflow_runner():
+    logger.info("Starting workflow runner")
+    install_packages()  # Install packages at runtime
+    schedule_tasks()
+    result = generate_daily_insights()
+    
+    if result and isinstance(result, dict) and 'signals' in result:
+        recommended_stocks = display_trading_recommendations(result['signals'])
+        logger.info(f"Generated recommendations for {len(recommended_stocks)} stocks")
+    else:
+        logger.error("No valid signals for recommendations")
+        if result:
+            logger.info(result.get('report', 'Error generating insights'))
+    
+    scheduler_thread = threading.Thread(target=run_scheduler)
+    scheduler_thread.daemon = True
+    scheduler_thread.start()
+    
+    logger.info("Workflow runner started. Scheduler running in background.")
+    return scheduler_thread
+
 # Main function
 def main():
     print("=" * 50)
@@ -475,23 +524,10 @@ def main():
     print("=" * 50)
     logger.info("Trading bot starting")
     
-    schedule_tasks()
-    result = generate_daily_insights()
+    # Start workflow runner
+    scheduler_thread = workflow_runner()
     
-    if result and isinstance(result, dict) and 'signals' in result:
-        recommended_stocks = display_trading_recommendations(result['signals'])
-        print(f"Generated recommendations for {len(recommended_stocks)} stocks")
-    else:
-        print("No valid signals for recommendations")
-        if result:
-            print(result.get('report', 'Error generating insights'))
-    
-    scheduler_thread = threading.Thread(target=run_scheduler)
-    scheduler_thread.daemon = True
-    scheduler_thread.start()
-    
-    print("Scheduler running in background. Press Ctrl+C to exit.")
-    
+    print("Press Ctrl+C to exit.")
     try:
         while True:
             time.sleep(1)
