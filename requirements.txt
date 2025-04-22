@@ -4,7 +4,7 @@ matplotlib
 scikit-learn
 yfinance
 alpha_vantage
-python-ta-lib
+ta-lib
 schedule
 ccxt
 python-dotenv
