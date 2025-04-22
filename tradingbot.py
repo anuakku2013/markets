@@ -34,15 +34,28 @@ CONFIG = {
     },
     'stocks': {
         'indices': ['^NSEI', '^NSEBANK'],
-        'top': [
-            'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS',
-            'INFY.NS', 'TATAMOTORS.NS', 'TATASTEEL.NS', 'AXISBANK.NS', 'HINDALCO.NS',
-            'ITC.NS', 'BHARTIARTL.NS'
-        ],
-        'additional': [
-            'BANKBARODA.NS', 'SAIL.NS', 'ASIANPAINT.NS', 'APOLLOHOSP.NS',
-            'PFC.NS', 'RECLTD.NS', 'GAIL.NS', 'PNB.NS', 'ASHOKLEY.NS',
-            'IOC.NS', 'AMBUJACEM.NS', 'DRREDDY.NS'
+        'analysis': [
+            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS",
+            "INFY.NS", "TATAMOTORS.NS", "TATASTEEL.NS", "AXISBANK.NS", "HINDALCO.NS",
+            "ITC.NS", "BHARTIARTL.NS", "ADANIENT.NS", "ONGC.NS", "NTPC.NS",
+            "JINDALSTEL.NS", "BAJFINANCE.NS", "KOTAKBANK.NS", "MARUTI.NS", "SUNPHARMA.NS",
+            "LT.NS", "WIPRO.NS", "COALINDIA.NS", "JSWSTEEL.NS", "TATAPOWER.NS",
+            "HCLTECH.NS", "BPCL.NS", "HINDUNILVR.NS", "M&M.NS", "ADANIPORTS.NS",
+            "POWERGRID.NS", "VEDL.NS", "BANKBARODA.NS", "SAIL.NS", "ASIANPAINT.NS",
+            "APOLLOHOSP.NS", "PFC.NS", "RECLTD.NS", "GAIL.NS", "PNB.NS",
+            "ASHOKLEY.NS", "IOC.NS", "AMBUJACEM.NS", "DRREDDY.NS", "BAJAJ-AUTO.NS",
+            "INDUSINDBK.NS", "HEROMOTOCO.NS", "HINDPETRO.NS", "IDEA.NS", "BIOCON.NS",
+            "FEDERALBNK.NS", "CANBK.NS", "TECHM.NS", "CIPLA.NS", "IDFC.NS",
+            "NMDC.NS", "BHEL.NS", "ADANIPOWER.NS", "IDBI.NS", "DLF.NS",
+            "NATIONALUM.NS", "GMRINFRA.NS", "RBLBANK.NS", "TITAN.NS", "UNIONBANK.NS",
+            "MOTHERSON.NS", "DIVISLAB.NS", "INDHOTEL.NS", "IRCTC.NS", "IDFCFIRSTB.NS",
+            "ZOMATO.NS", "TATACONSUM.NS", "PIIND.NS", "RVNL.NS", "CUMMINSIND.NS",
+            "SUZLON.NS", "GRASIM.NS", "BEL.NS", "LUPIN.NS", "PAYTM.NS",
+            "IRFC.NS", "BRITANNIA.NS", "HAVELLS.NS", "GODREJCP.NS", "UPL.NS",
+            "CONCOR.NS", "HAL.NS", "NESTLEIND.NS", "INDIGO.NS", "SUNTV.NS",
+            "DABUR.NS", "MAHINDCIE.NS", "SIEMENS.NS", "AUROPHARMA.NS", "MCDOWELL-N.NS",
+            "JUBLFOOD.NS", "BHARATFORG.NS", "ABFRL.NS", "BANDHANBNK.NS", "BOSCHLTD.NS",
+            "CHOLAFIN.NS", "EICHERMOT.NS", "EXIDEIND.NS", "HDFC.NS"
         ]
     },
     'news': [
@@ -78,8 +91,7 @@ telegram_queue = Queue()
 INDIAN_HOLIDAYS = holidays.India()
 
 # Derived stock lists
-INTRADAY_STOCKS = CONFIG['stocks']['indices'] + CONFIG['stocks']['top'][:12]
-ALL_STOCKS = list(set(CONFIG['stocks']['indices'] + CONFIG['stocks']['top'] + CONFIG['stocks']['additional']))
+ALL_STOCKS = list(set(CONFIG['stocks']['indices'] + CONFIG['stocks']['analysis']))
 
 # SQLite cache initialization
 def init_cache_db():
@@ -199,9 +211,9 @@ def calculate_indicators(df):
     return data
 
 # Analyze stock
-def analyze_stock(symbol, data, intraday=False):
+def analyze_stock(symbol, data):
     try:
-        min_data_points = 14 if intraday else 30
+        min_data_points = 30
         if data is None or len(data) < min_data_points:
             return None
         
@@ -303,17 +315,17 @@ def get_market_news(max_articles=5):
     return all_news[:max_articles]
 
 # Generate technical signals
-def generate_technical_signals(stocks_list, interval='1d', intraday=False):
+def generate_technical_signals(stocks_list, interval='1d'):
     signals = []
     batch_size = 10
     for i in range(0, len(stocks_list), batch_size):
         batch = stocks_list[i:i + batch_size]
-        data = fetch_batch_stock_data(batch, interval=interval, period='5d' if intraday else '90d')
+        data = fetch_batch_stock_data(batch, interval=interval, period='90d')
         for symbol in batch:
             try:
                 df = data.get(symbol)
                 if df is not None and not df.empty:
-                    result = analyze_stock(symbol, df, intraday)
+                    result = analyze_stock(symbol, df)
                     if result:
                         signals.append(result)
                         logger.info(f"Generated signals for {symbol}: Score={result['score']}")
@@ -328,7 +340,7 @@ def generate_daily_insights():
     try:
         market_state, market_message = check_market_state()
         news = get_market_news(max_articles=5)
-        signals = generate_technical_signals(CONFIG['stocks']['top'])
+        signals = generate_technical_signals(CONFIG['stocks']['analysis'])
         
         report = []
         today_date = datetime.now().strftime('%d %b %Y')
