@@ -1,4 +1,4 @@
-name: Trading Bot Workflow
+name: tradingbot
 
 on:
   schedule:
