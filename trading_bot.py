@@ -17,13 +17,13 @@ from bs4 import BeautifulSoup
 from queue import Queue
 from ratelimit import limits, sleep_and_retry
 
-# List of required packages with pinned versions
 REQUIRED_PACKAGES = [
     'pandas==2.0.3', 'numpy==1.24.4', 'matplotlib==3.7.5', 'scikit-learn==1.3.2',
-    'yfinance==0.2.44', 'alpha_vantage==2.3.1', 'schedule==1.2.2', 'ccxt==4.3.0',
+    'yfinance==0.2.44', 'alpha_vantage==2.3.1', 'schedule==1.2.2', 'ccxt==4.4.40',  # Updated
     'python-dotenv==1.0.1', 'requests==2.32.3', 'tensorflow==2.15.0', 'torch==2.2.2',
     'pytz==2024.2', 'plotly==5.24.1', 'ratelimit==2.2.1', 'typing_extensions==4.12.2',
     'dash==2.18.1', 'TA-Lib==0.4.24'
+]
 ]
 
 # Install required packages
