@@ -1,4 +1,3 @@
-```yaml
 name: Trading Bot Workflow
 
 on:
@@ -60,4 +59,3 @@ jobs:
         with:
           name: trading-bot-reports
           path: ./recommendations/*.md
-```
