@@ -79,15 +79,15 @@ TOP_STOCKS = [
     "IDEA.NS", "BIOCON.NS", "FEDERALBNK.NS", "CANBK.NS",
     "TECHM.NS", "CIPLA.NS", "IDFC.NS", "NMDC.NS",
     "BHEL.NS", "ADANIPOWER.NS", "IDBI.NS", "DLF.NS",
-    "NATIONALUM.NS", "GMRINFRA.NS", "RBLBANK.NS", "TITAN.NS",
+    "NATIONALUM.NS", "RBLBANK.NS", "TITAN.NS",
     "UNIONBANK.NS", "MOTHERSON.NS", "DIVISLAB.NS", "INDHOTEL.NS",
-    "IRCTC.NS", "IDFCFIRSTB.NS", "ZOMATO.NS", "TATACONSUM.NS",
+    "IRCTC.NS", "ZOMATO.NS", "TATACONSUM.NS",
     "PIIND.NS", "RVNL.NS", "CUMMINSIND.NS", "SUZLON.NS",
     "GRASIM.NS", "BEL.NS", "LUPIN.NS", "PAYTM.NS",
     "IRFC.NS", "BRITANNIA.NS", "HAVELLS.NS", "GODREJCP.NS",
     "UPL.NS", "CONCOR.NS", "HAL.NS", "NESTLEIND.NS",
     "INDIGO.NS", "SUNTV.NS", "DABUR.NS", "MAHINDCIE.NS",
-    "SIEMENS.NS", "AUROPHARMA.NS", "MCDOWELL-N.NS", "JUBLFOOD.NS",
+    "SIEMENS.NS", "AUROPHARMA.NS", "JUBLFOOD.NS",
     "BHARATFORG.NS", "ABFRL.NS", "BANDHANBNK.NS", "BOSCHLTD.NS",
     "CHOLAFIN.NS", "EICHERMOT.NS", "EXIDEIND.NS", "HDFC.NS"
 ]
@@ -1228,14 +1228,25 @@ def run_scheduler():
         print(f"Error in scheduler loop: {e}")
 
 # Function to display trading recommendations
+# Function to display trading recommendations
 def display_trading_recommendations(signals):
     """Display actual trading recommendations based on signal scores."""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print("\n===== STOCK RECOMMENDATIONS =====")
     print(f"Generated on: {timestamp}\n")
     
+    # Check if signals is a string instead of a dictionary
+    if isinstance(signals, str):
+        print("No tradable signals available or error in generation:")
+        print(signals)
+        print("================================")
+        return []
+    
+    # Continue with dictionary processing as before
     # Sort stocks by signal score (highest first)
     sorted_stocks = sorted(signals.items(), key=lambda x: x[1].get('score', 0), reverse=True)
+    
+    # Rest of the function remains the same...
     
     # Prepare recommendations for display and Telegram
     telegram_recommendations = []
