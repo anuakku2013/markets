@@ -1,0 +1,40 @@
+name: tradingbot-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pandas
+  - numpy
+  - matplotlib
+  - scikit-learn
+  - pip:
+    - yfinance
+    - alpha_vantage
+    - ta-lib
+    - schedule
+    - ccxt
+    - python-dotenv
+    - requests
+    - tensorflow
+    - torch
+    - pytz
+    - plotly
+    - dash
+
+variables:
+  PYTHONPATH: $CONDA_PREFIX/lib/python3.10/site-packages
+
+on_env_activate:
+  - pip check
+  - echo "Trading bot environment ready"
+
+standalone:
+  source_scripts:
+    # Define cron job for auto-execution
+    - name: setup_cron
+      content: |
+        (crontab -l 2>/dev/null; echo "0 */6 * * * cd $(pwd) && $CONDA_PREFIX/bin/python $(pwd)/tradingbot.py") | crontab -
+
+version: 1
