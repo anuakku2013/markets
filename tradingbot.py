@@ -67,9 +67,29 @@ TOP_STOCKS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS",
     "SBIN.NS", "INFY.NS", "TATAMOTORS.NS", "TATASTEEL.NS",
     "AXISBANK.NS", "HINDALCO.NS", "ITC.NS", "BHARTIARTL.NS",
-    "ADANIENT.NS", "ONGC.NS", "NTPC.NS", "BAJFINANCE.NS",
-    "KOTAKBANK.NS", "MARUTI.NS", "SUNPHARMA.NS", "LT.NS", 
-    "WIPRO.NS", "COALINDIA.NS", "JSWSTEEL.NS", "TATAPOWER.NS"
+    "ADANIENT.NS", "ONGC.NS", "NTPC.NS", "JINDALSTEL.NS",
+    "BAJFINANCE.NS", "KOTAKBANK.NS", "MARUTI.NS", "SUNPHARMA.NS",
+    "LT.NS", "WIPRO.NS", "COALINDIA.NS", "JSWSTEEL.NS",
+    "TATAPOWER.NS", "HCLTECH.NS", "BPCL.NS", "HINDUNILVR.NS",
+    "M&M.NS", "ADANIPORTS.NS", "POWERGRID.NS", "VEDL.NS",
+    "BANKBARODA.NS", "SAIL.NS", "ASIANPAINT.NS", "APOLLOHOSP.NS",
+    "PFC.NS", "RECLTD.NS", "GAIL.NS", "PNB.NS",
+    "ASHOKLEY.NS", "IOC.NS", "AMBUJACEM.NS", "DRREDDY.NS",
+    "BAJAJ-AUTO.NS", "INDUSINDBK.NS", "HEROMOTOCO.NS", "HINDPETRO.NS",
+    "IDEA.NS", "BIOCON.NS", "FEDERALBNK.NS", "CANBK.NS",
+    "TECHM.NS", "CIPLA.NS", "IDFC.NS", "NMDC.NS",
+    "BHEL.NS", "ADANIPOWER.NS", "IDBI.NS", "DLF.NS",
+    "NATIONALUM.NS", "GMRINFRA.NS", "RBLBANK.NS", "TITAN.NS",
+    "UNIONBANK.NS", "MOTHERSON.NS", "DIVISLAB.NS", "INDHOTEL.NS",
+    "IRCTC.NS", "IDFCFIRSTB.NS", "ZOMATO.NS", "TATACONSUM.NS",
+    "PIIND.NS", "RVNL.NS", "CUMMINSIND.NS", "SUZLON.NS",
+    "GRASIM.NS", "BEL.NS", "LUPIN.NS", "PAYTM.NS",
+    "IRFC.NS", "BRITANNIA.NS", "HAVELLS.NS", "GODREJCP.NS",
+    "UPL.NS", "CONCOR.NS", "HAL.NS", "NESTLEIND.NS",
+    "INDIGO.NS", "SUNTV.NS", "DABUR.NS", "MAHINDCIE.NS",
+    "SIEMENS.NS", "AUROPHARMA.NS", "MCDOWELL-N.NS", "JUBLFOOD.NS",
+    "BHARATFORG.NS", "ABFRL.NS", "BANDHANBNK.NS", "BOSCHLTD.NS",
+    "CHOLAFIN.NS", "EICHERMOT.NS", "EXIDEIND.NS", "HDFC.NS"
 ]
 
 # Options for high volatility intraday trading
@@ -1194,6 +1214,7 @@ def schedule_tasks():
         send_telegram_message(startup_message)
 
 # Run the scheduler continuously
+# Run the scheduler continuously
 def run_scheduler():
     """Run the task scheduler in an infinite loop."""
     try:
@@ -1203,16 +1224,116 @@ def run_scheduler():
             time.sleep(60)  # Check every minute
     except Exception as e:
         logger.error(f"Error in scheduler loop: {e}")
-        if TELEGRAM_ENABLED:
-            send_telegram_message(f"⚠️ *Error:* Scheduler loop failed: {e}")
+        # Only log to terminal, not Telegram
+        print(f"Error in scheduler loop: {e}")
+
+# Function to display trading recommendations
+def display_trading_recommendations(signals):
+    """Display actual trading recommendations based on signal scores."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print("\n===== STOCK RECOMMENDATIONS =====")
+    print(f"Generated on: {timestamp}\n")
+    
+    # Sort stocks by signal score (highest first)
+    sorted_stocks = sorted(signals.items(), key=lambda x: x[1].get('score', 0), reverse=True)
+    
+    # Prepare recommendations for display and Telegram
+    telegram_recommendations = []
+    
+    for stock, data in sorted_stocks:
+        score = data.get('score', 0)
+        action = "STRONG BUY" if score >= 8 else "BUY" if score >= 5 else "HOLD" if score >= 3 else "SELL"
+        price = data.get('current_price', 'N/A')
+        
+        if isinstance(price, (int, float)):
+            price_display = f"₹{price:.2f}"
+        else:
+            price_display = str(price)
+        
+        # Calculate target price based on technical indicators (example calculation)
+        target_price = None
+        if isinstance(price, (int, float)):
+            # Simple target calculation based on score and current price
+            if score >= 8:
+                target_price = price * 1.10  # 10% growth potential for strong buys
+            elif score >= 5:
+                target_price = price * 1.05  # 5% growth potential for buys
+            elif score <= 2:
+                target_price = price * 0.95  # 5% drop expected for sells
+        
+        target_display = f"₹{target_price:.2f}" if target_price else "N/A"
+        
+        # Extract reasons based on indicators
+        reasons = []
+        if 'indicators' in data:
+            indicators = data['indicators']
+            if 'rsi_oversold' in indicators:
+                reasons.append("Oversold (RSI)")
+            if 'macd_bullish' in indicators:
+                reasons.append("Bullish MACD crossover")
+            if 'golden_cross' in indicators:
+                reasons.append("Golden Cross (MA crossover)")
+            if 'breakout' in indicators:
+                reasons.append("Price breakout")
+            if 'support' in indicators:
+                reasons.append("At support level")
+            if 'resistance' in indicators:
+                reasons.append("Near resistance")
+            if 'volume_spike' in indicators:
+                reasons.append("Unusual volume")
+            
+        # If no specific reasons were extracted, use generic ones based on score
+        if not reasons:
+            if score >= 8:
+                reasons.append("Strong technical indicators")
+            elif score >= 5:
+                reasons.append("Positive technical setup")
+            elif score <= 2:
+                reasons.append("Bearish technical indicators")
+                
+        reason_text = ", ".join(reasons) if reasons else "Based on technical analysis"
+        
+        # Display on terminal
+        print(f"{stock}: {action} (Score: {score})")
+        print(f"  Current Price: {price_display}")
+        print(f"  Target Price: {target_display}")
+        print(f"  Reason: {reason_text}")
+        if 'indicators' in data:
+            print(f"  Technical indicators: {', '.join(data['indicators'])}")
+        print("")  # Empty line between stocks
+        
+        # Only add BUY and STRONG BUY recommendations to Telegram message
+        if score >= 5:  # Only BUY and STRONG BUY
+            telegram_recommendations.append({
+                'symbol': stock,
+                'action': action,
+                'price': price_display,
+                'target': target_display,
+                'reason': reason_text
+            })
+    
+    print("================================")
+    
+    # Send only recommendations to Telegram, not status messages
+    if TELEGRAM_ENABLED and telegram_recommendations:
+        telegram_message = f"📈 *Stock Recommendations ({timestamp})*\n\n"
+        for rec in telegram_recommendations[:5]:  # Limit to top 5 to avoid message size issues
+            telegram_message += f"*{rec['symbol']}*: {rec['action']}\n"
+            telegram_message += f"Price: {rec['price']} → Target: {rec['target']}\n"
+            telegram_message += f"Reason: {rec['reason']}\n\n"
+        
+        send_telegram_message(telegram_message)
+    
+    return sorted_stocks
 
 # Main function
 def main():
     """Main function to start the trading bot."""
     try:
-        logger.info("=" * 50)
-        logger.info("TRADING BOT STARTING")
-        logger.info("=" * 50)
+        print("=" * 50)
+        print("TRADING BOT STARTING")
+        print("=" * 50)
+        logger.info("Trading bot starting")
         
         # Check for required directories
         os.makedirs(DATA_CACHE_DIR, exist_ok=True)
@@ -1221,33 +1342,47 @@ def main():
         # Initialize the scheduler
         schedule_tasks()
         
-        # Generate initial insights
-        logger.info("Generating initial insights on startup")
-        generate_daily_insights()
+        # Generate initial insights and display them
+        print("Generating initial insights on startup")
+        daily_insights = generate_daily_insights()
+        
+        # Display actual trading recommendations rather than just logging
+        if daily_insights:
+            recommended_stocks = display_trading_recommendations(daily_insights)
+            print(f"Generated recommendations for {len(recommended_stocks)} stocks")
         
         # Run the scheduler in a separate thread
         scheduler_thread = threading.Thread(target=run_scheduler)
         scheduler_thread.daemon = True
         scheduler_thread.start()
         
-        # Keep the main thread alive
-        while True:
-            time.sleep(60)
+        print("Scheduler running in background. Press Ctrl+C to exit.")
+        
+        # Keep the main thread alive with a more responsive interrupt handler
+        try:
+            while True:
+                time.sleep(1)  # More responsive to keyboard interrupt
+        except KeyboardInterrupt:
+            # Graceful exit
+            print("\nShutting down trading bot. Please wait...")
+            # Give tasks time to clean up
+            time.sleep(2)
+            print("Trading bot stopped.")
+            sys.exit(0)
             
     except KeyboardInterrupt:
+        print("Trading bot stopped by user")
         logger.info("Trading bot stopped by user")
-        if TELEGRAM_ENABLED:
-            send_telegram_message("🛑 Trading bot stopped by user")
     except Exception as e:
-        logger.error(f"Critical error in main: {e}")
-        if TELEGRAM_ENABLED:
-            send_telegram_message(f"🚨 *CRITICAL ERROR:* Bot crashed: {e}")
+        error_msg = f"Critical error in main: {e}"
+        print(error_msg)
+        logger.error(error_msg)
         raise
 
-# API endpoints for external integration
+# API endpoints with improved result handling
 def start_api_server(port=5000):
     """Start a simple API server for external integrations."""
-    from flask import Flask, jsonify, request
+    from flask import Flask, jsonify, request, render_template_string
     
     app = Flask(__name__)
     
@@ -1276,6 +1411,89 @@ def start_api_server(port=5000):
         # Generate signals
         signals = generate_technical_signals(symbols, interval, intraday)
         
+        # Add target prices and reasons to the signals
+        for symbol, data in signals.items():
+            if 'current_price' in data and isinstance(data['current_price'], (int, float)):
+                price = data['current_price']
+                score = data.get('score', 0)
+                
+                # Calculate target price
+                if score >= 8:
+                    data['target_price'] = price * 1.10
+                elif score >= 5:
+                    data['target_price'] = price * 1.05
+                elif score <= 2:
+                    data['target_price'] = price * 0.95
+                else:
+                    data['target_price'] = price
+                
+                # Add reasoning
+                reasons = []
+                if 'indicators' in data:
+                    indicators = data['indicators']
+                    if 'rsi_oversold' in indicators:
+                        reasons.append("Oversold (RSI)")
+                    if 'macd_bullish' in indicators:
+                        reasons.append("Bullish MACD crossover")
+                    if 'golden_cross' in indicators:
+                        reasons.append("Golden Cross (MA crossover)")
+                    if 'breakout' in indicators:
+                        reasons.append("Price breakout")
+                
+                data['reasons'] = reasons if reasons else ["Based on technical analysis"]
+        
+        # Serve HTML if requested
+        if request.args.get('format', '').lower() == 'html':
+            # Enhanced HTML template with target prices and reasons
+            template = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Stock Signals</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    table { border-collapse: collapse; width: 100%; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    th { background-color: #f2f2f2; }
+                    tr:nth-child(even) { background-color: #f9f9f9; }
+                    .buy { color: green; font-weight: bold; }
+                    .sell { color: red; font-weight: bold; }
+                    .hold { color: orange; }
+                </style>
+            </head>
+            <body>
+                <h1>Stock Signals ({{ timestamp }})</h1>
+                <table>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Score</th>
+                        <th>Action</th>
+                        <th>Current Price</th>
+                        <th>Target Price</th>
+                        <th>Reasons</th>
+                    </tr>
+                    {% for symbol, data in signals.items() %}
+                    <tr>
+                        <td>{{ symbol }}</td>
+                        <td>{{ data.get('score', 'N/A') }}</td>
+                        <td class="{% if data.get('score', 0) >= 5 %}buy{% elif data.get('score', 0) <= 2 %}sell{% else %}hold{% endif %}">
+                            {% if data.get('score', 0) >= 8 %}STRONG BUY
+                            {% elif data.get('score', 0) >= 5 %}BUY
+                            {% elif data.get('score', 0) >= 3 %}HOLD
+                            {% else %}SELL{% endif %}
+                        </td>
+                        <td>{% if data.get('current_price') %}₹{{ "%.2f"|format(data.get('current_price')) }}{% else %}N/A{% endif %}</td>
+                        <td>{% if data.get('target_price') %}₹{{ "%.2f"|format(data.get('target_price')) }}{% else %}N/A{% endif %}</td>
+                        <td>{{ ', '.join(data.get('reasons', [])) }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </body>
+            </html>
+            """
+            return render_template_string(template, signals=signals, timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        
+        # Otherwise return JSON
         return jsonify({
             'signals': signals,
             'count': len(signals),
@@ -1286,6 +1504,13 @@ def start_api_server(port=5000):
     def get_daily_report():
         """Generate and return daily report."""
         report = generate_daily_insights()
+        
+        # Return as HTML if requested
+        if request.args.get('format', '').lower() == 'html':
+            with open(os.path.join(RECOMMENDATIONS_DIR, f"daily_report_{datetime.now().strftime('%Y%m%d')}.md"), 'r') as f:
+                content = f.read()
+                return render_template_string("<!DOCTYPE html><html><head><title>Daily Report</title></head><body><pre>{{ content }}</pre></body></html>", content=content)
+        
         return jsonify({
             'report': report,
             'timestamp': datetime.now().isoformat()
@@ -1300,11 +1525,60 @@ def start_api_server(port=5000):
             'timestamp': datetime.now().isoformat()
         })
     
+    @app.route('/', methods=['GET'])
+    def home():
+        """Home page with links to available endpoints."""
+        return render_template_string("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Trading Bot API</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; }
+                .endpoint { background: #f7f7f7; padding: 10px; margin: 10px 0; border-radius: 5px; }
+                h2 { color: #333; }
+            </style>
+        </head>
+        <body>
+            <h1>Trading Bot API</h1>
+            <p>Server time: {{ time }}</p>
+            
+            <h2>Available Endpoints:</h2>
+            
+            <div class="endpoint">
+                <h3>/health</h3>
+                <p>Check system health and market status</p>
+                <a href="/health">View Health Status</a>
+            </div>
+            
+            <div class="endpoint">
+                <h3>/signals</h3>
+                <p>Get signals for stocks</p>
+                <p>Parameters: symbols (comma-separated), interval (1d, 5m, etc), intraday (true/false), format (json/html)</p>
+                <a href="/signals?format=html">View Default Signals</a>
+            </div>
+            
+            <div class="endpoint">
+                <h3>/reports/daily</h3>
+                <p>Generate daily market report</p>
+                <a href="/reports/daily?format=html">View Daily Report</a>
+            </div>
+            
+            <div class="endpoint">
+                <h3>/reports/weekly</h3>
+                <p>Generate weekly market outlook</p>
+                <a href="/reports/weekly">View Weekly Report</a>
+            </div>
+        </body>
+        </html>
+        """, time=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    
     # Start the server in a separate thread
-    api_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=port, debug=False))
+    api_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port, debug=False))
     api_thread.daemon = True
     api_thread.start()
     
+    print(f"\n✅ API server running at http://localhost:{port}")
     logger.info(f"API server started on port {port}")
 
 # Command-line interface function
@@ -1320,8 +1594,36 @@ def parse_args():
     parser.add_argument('--weekly-report', action='store_true', help='Generate weekly report and exit')
     parser.add_argument('--analyze', type=str, help='Analyze specific stock symbol and exit')
     parser.add_argument('--interval', type=str, default='1d', help='Interval for analysis (default: 1d)')
+    parser.add_argument('--show-results', action='store_true', help='Display results on console instead of just logging')
     
     return parser.parse_args()
+
+# Modify send_telegram_message to only send trade recommendations
+def send_telegram_message(message):
+    """Send message to Telegram channel, but only for recommendations."""
+    if not TELEGRAM_ENABLED:
+        return
+    
+    # Only send messages that contain stock recommendations
+    # Check if this is a recommendation message (contains 'Stock Recommendations')
+    if "Stock Recommendations" not in message and "BUY" not in message and "SELL" not in message:
+        # Just log other messages locally instead of sending
+        logger.info(f"[Not sent to Telegram] {message}")
+        return
+    
+    # Continue with sending recommendation messages
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"Failed to send Telegram message: {e}")
+        print(f"Failed to send Telegram message: {e}")
 
 # Entry point
 if __name__ == "__main__":
@@ -1331,20 +1633,23 @@ if __name__ == "__main__":
     # Check for one-time actions
     if args.no_telegram:
         TELEGRAM_ENABLED = False
-        logger.info("Telegram notifications disabled by command-line argument")
+        print("Telegram notifications disabled by command-line argument")
     
     if args.daily_report:
-        logger.info("Generating daily report and exiting")
-        generate_daily_insights()
+        print("Generating daily report")
+        daily_insights = generate_daily_insights()
+        if daily_insights and args.show_results:
+            display_trading_recommendations(daily_insights)
         sys.exit(0)
     
     if args.weekly_report:
-        logger.info("Generating weekly report and exiting")
-        generate_weekly_outlook()
+        print("Generating weekly report")
+        weekly_outlook = generate_weekly_outlook()
+        print(f"Weekly report saved to {RECOMMENDATIONS_DIR}/weekly_outlook_{datetime.now().strftime('%Y%m%d')}.md")
         sys.exit(0)
     
     if args.analyze:
-        logger.info(f"Analyzing stock {args.analyze} and exiting")
+        print(f"Analyzing stock {args.analyze}")
         symbol = args.analyze
         if not symbol.endswith('.NS') and symbol not in INDICES:
             symbol = f"{symbol}.NS"
@@ -1354,6 +1659,37 @@ if __name__ == "__main__":
             if df is not None:
                 analysis = analyze_stock(symbol, df, intraday=args.interval in ['5m', '15m', '30m', '60m', '1h'])
                 if analysis:
+                    # Calculate target price
+                    score = analysis.get('score', 0)
+                    current_price = analysis.get('current_price')
+                    
+                    if isinstance(current_price, (int, float)):
+                        if score >= 8:
+                            target_price = current_price * 1.10
+                        elif score >= 5:
+                            target_price = current_price * 1.05
+                        elif score <= 2:
+                            target_price = current_price * 0.95
+                        else:
+                            target_price = current_price
+                        
+                        analysis['target_price'] = target_price
+                    
+                    # Add reasoning
+                    reasons = []
+                    if 'indicators' in analysis:
+                        indicators = analysis['indicators']
+                        if 'rsi_oversold' in indicators:
+                            reasons.append("Oversold (RSI)")
+                        if 'macd_bullish' in indicators:
+                            reasons.append("Bullish MACD crossover")
+                        if 'golden_cross' in indicators:
+                            reasons.append("Golden Cross (MA crossover)")
+                        if 'breakout' in indicators:
+                            reasons.append("Price breakout")
+                    
+                    analysis['reasons'] = reasons if reasons else ["Based on technical analysis"]
+                    
                     print(json.dumps(analysis, indent=2))
                 else:
                     print(f"Could not analyze {symbol}")
@@ -1366,7 +1702,7 @@ if __name__ == "__main__":
     
     # Start API server if requested
     if args.api:
-        logger.info(f"Starting API server on port {args.api_port}")
+        print(f"Starting API server on port {args.api_port}")
         start_api_server(port=args.api_port)
     
     # Start the main function
