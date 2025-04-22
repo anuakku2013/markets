@@ -1,0 +1,16 @@
+pandas
+numpy
+matplotlib
+scikit-learn
+yfinance
+alpha_vantage
+python-ta-lib
+schedule
+ccxt
+python-dotenv
+requests
+tensorflow
+torch
+pytz
+plotly
+dash
