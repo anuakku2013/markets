@@ -3,7 +3,7 @@ name: Trading Bot Workflow
 # This example runs every 6 hours
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Fixed cron syntax: minute hour day-month month day-week
+    - cron: '0 */6 * * *'  # minute hour day-month month day-week
   # Allow manual triggering of the workflow
   workflow_dispatch:
 
@@ -15,33 +15,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2
         with:
+          auto-activate-base: true
           python-version: '3.10'
-          
-      - name: Install TA-Lib C library
+          activate-environment: trading-env
+      
+      - name: Install dependencies with conda
+        shell: bash -l {0}
         run: |
-          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-          tar -xzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib/
-          ./configure --prefix=/usr
-          make
-          sudo make install
-          cd ..
-          
-      - name: Set TA-Lib environment variables
-        run: |
-          echo "LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          
-      - name: Install Python dependencies
-        run: |
+          conda install -c conda-forge ta-lib numpy pandas scipy matplotlib scikit-learn
           python -m pip install --upgrade pip
-          pip install numpy  # Install numpy first as it's often a prerequisite
-          pip install --no-binary :all: ta-lib  # Force compilation against the installed C library
-          pip install -r requirements.txt
+          # Install remaining packages from requirements.txt except TA-Lib
+          pip install yfinance alpha_vantage
+          # Add other requirements from your file that aren't installed via conda
+          
+      - name: Verify TA-Lib installation
+        shell: bash -l {0}
+        run: |
+          python -c "import talib; print('TA-Lib successfully installed')"
           
       - name: Run trading bot
+        shell: bash -l {0}
         run: python tradingbot.py
         env:
           # Add any environment variables your bot needs
