@@ -1,54 +1,59 @@
 name: Trading Bot Workflow
-# Define the schedule using cron syntax
-# This example runs every 6 hours
+
 on:
   schedule:
-    - cron: '0 */6 * * *'  # minute hour day-month month day-week
-  # Allow manual triggering of the workflow
-  workflow_dispatch:
+    - cron: '0 3 * * *' # Run daily at 03:00 UTC (08:30 IST)
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
   run-trading-bot:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
-      - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          auto-activate-base: true
-          python-version: '3.10'
-          activate-environment: trading-env
-      
-      - name: Install dependencies with conda
-        shell: bash -l {0}
+          python-version: '3.8'
+
+      - name: Install TA-Lib C library
         run: |
-          conda install -c conda-forge ta-lib numpy pandas scipy matplotlib scikit-learn
-          python -m pip install --upgrade pip
-          # Install all required packages from the import list
-          pip install yfinance alpha_vantage schedule requests pytz beautifulsoup4 holidays
-          # These packages are part of the standard library: os, time, json, datetime, threading, re
-          
-      - name: Verify TA-Lib installation
-        shell: bash -l {0}
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xvzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib
+          ./configure --prefix=/usr
+          make
+          sudo make install
+          cd ..
+
+      - name: Install Python dependencies
         run: |
-          python -c "import talib; print('TA-Lib successfully installed')"
-          
+          pip install --upgrade pip
+          pip install pandas numpy matplotlib scikit-learn yfinance alpha_vantage TA-Lib==0.4.24 schedule ccxt python-dotenv requests tensorflow torch pytz plotly ratelimit dash
+
       - name: Run trading bot
-        shell: bash -l {0}
-        run: python tradingbot.py
         env:
-          # Add any environment variables your bot needs
-          API_KEY: ${{ secrets.API_KEY }}
-          API_SECRET: ${{ secrets.API_SECRET }}
-          
-      - name: Save trading data
-        uses: actions/upload-artifact@v4
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python trading_bot.py
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
         with:
-          name: trading-data
-          path: |
-            data/
-            logs/
-          retention-days: 7
+          name: trading-bot-logs
+          path: ./logs/trading_bot.log
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: trading-bot-reports
+          path: ./recommendations/*.md
